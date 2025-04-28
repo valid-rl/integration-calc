@@ -5,15 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Integral Calculator</title>
 
-  <!-- Libraries -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/algebrite/1.5.0/algebrite.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
   <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/4/4c/Integral_Icon.png" type="image/png">
 
@@ -26,7 +22,6 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      transition: background 0.3s, color 0.3s;
     }
     .container {
       background: white;
@@ -36,7 +31,6 @@
       width: 100%;
       max-width: 600px;
       margin-bottom: 30px;
-      transition: background 0.3s;
     }
     .logo {
       text-align: center;
@@ -58,11 +52,6 @@
       font-size: 1rem;
       border-radius: 8px;
       border: 1px solid #ccc;
-      transition: border-color 0.3s;
-    }
-    input:focus {
-      border-color: #007bff;
-      outline: none;
     }
     button {
       background-color: #007bff;
@@ -83,7 +72,6 @@
       min-height: 50px;
       text-align: center;
       word-wrap: break-word;
-      transition: background-color 0.3s;
     }
     #graph {
       margin-top: 20px;
@@ -116,117 +104,53 @@
 
     <div class="btn-group">
       <button onclick="calculateIntegration()">Calculate</button>
-      <button onclick="downloadPDF()">Download as PDF</button>
     </div>
 
     <div id="result"></div>
     <div id="graph"></div>
   </div>
 
-  <script>
-    function calculateIntegration() {
-      const funcStr = document.getElementById('functionInput').value.trim();
-      const lower = document.getElementById('lowerLimit').value.trim();
-      const upper = document.getElementById('upperLimit').value.trim();
-      const resultDiv = document.getElementById('result');
-      const graphDiv = document.getElementById('graph');
+<script>
+function calculateIntegration() {
+  const funcStr = document.getElementById('functionInput').value.trim();
+  const lower = document.getElementById('lowerLimit').value.trim();
+  const upper = document.getElementById('upperLimit').value.trim();
+  const resultDiv = document.getElementById('result');
 
-      if (!funcStr) {
-        resultDiv.innerHTML = 'Please enter a function.';
-        return;
-      }
+  if (!funcStr) {
+    resultDiv.innerHTML = 'Please enter a function.';
+    return;
+  }
 
-      try {
-        const node = math.parse(funcStr);
-        const f = node.compile();
+  try {
+    const integral = Algebrite.integral(funcStr).toString();
+    if (lower && upper) {
+      const F = Algebrite.run(integral);
+      const F_upper = Algebrite.run(`subst(x, ${upper}, ${F})`);
+      const F_lower = Algebrite.run(`subst(x, ${lower}, ${F})`);
+      const definite_value = Algebrite.run(`${F_upper} - (${F_lower})`);
 
-        if (lower && upper) {
-          // Definite integral: use numeric integration
-          const fn = (x) => f.evaluate({x: x});
-          const area = math.integrate(fn, parseFloat(lower), parseFloat(upper));
-
-          resultDiv.innerHTML = `\\[
-          \\int_{${lower}}^{${upper}} ${node.toTex()} \\, dx = ${math.format(area, {precision: 6})}
-          \\]`;
-          plotGraph(funcStr, lower, upper);
-        } else {
-          // Indefinite integral (symbolic)
-          const integralNode = math.integrate(funcStr, 'x');
-          resultDiv.innerHTML = `\\[
-          \\int ${node.toTex()} \\, dx = ${integralNode.toTex()} + C
-          \\]`;
-          plotGraph(funcStr, null, null);
-        }
-
-        MathJax.typesetPromise();
-
-      } catch (error) {
-        console.error(error);
-        resultDiv.innerHTML = 'Error computing integral. Please check your function syntax.';
-      }
+      resultDiv.innerHTML = `
+        \\[
+        \\int_{${lower}}^{${upper}} ${Algebrite.run(`printlatex(${funcStr})`)} \\, dx = ${Algebrite.run(`printlatex(${definite_value})`}
+        \\]
+      `;
+    } else {
+      resultDiv.innerHTML = `
+        \\[
+        \\int ${Algebrite.run(`printlatex(${funcStr})`)} \\, dx = ${Algebrite.run(`printlatex(${integral})`} + C
+        \\]
+      `;
     }
 
-    function plotGraph(funcStr, lower, upper) {
-      let x = [];
-      let y = [];
-      const expr = math.compile(funcStr);
+    MathJax.typesetPromise();
 
-      for (let i = -10; i <= 10; i += 0.1) {
-        x.push(i);
-        y.push(expr.evaluate({x: i}));
-      }
+  } catch (error) {
+    console.error(error);
+    resultDiv.innerHTML = 'Error computing integral. Please check your function syntax.';
+  }
+}
+</script>
 
-      const trace = {
-        x: x,
-        y: y,
-        mode: 'lines',
-        name: 'f(x)',
-        line: {color: 'blue'}
-      };
-
-      let layout = {
-        title: 'Graph of f(x)',
-        xaxis: {title: 'x'},
-        yaxis: {title: 'f(x)'},
-      };
-
-      let data = [trace];
-
-      if (lower && upper) {
-        let shadeX = [];
-        let shadeY = [];
-
-        for (let i = parseFloat(lower); i <= parseFloat(upper); i += 0.1) {
-          shadeX.push(i);
-          shadeY.push(expr.evaluate({x: i}));
-        }
-
-        const area = {
-          x: [...shadeX, ...shadeX.reverse()],
-          y: [...shadeY, new Array(shadeY.length).fill(0)],
-          fill: 'tozeroy',
-          type: 'scatter',
-          mode: 'none',
-          fillcolor: 'rgba(0,100,80,0.2)',
-          name: 'Area'
-        };
-
-        data.push(area);
-      }
-
-      Plotly.newPlot('graph', data, layout);
-    }
-
-    function downloadPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      html2canvas(document.querySelector("#result")).then(canvas => {
-        const imgData = canvas.toDataURL('image/png');
-        doc.addImage(imgData, 'PNG', 10, 10, 190, 40);
-        doc.save('integral_result.pdf');
-      });
-    }
-  </script>
 </body>
 </html>
