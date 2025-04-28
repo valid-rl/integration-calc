@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Integral Calculator</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/algebrite/1.5.0/algebrite.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/4/4c/Integral_Icon.png" type="image/png">
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 30px;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #007bff;
+    }
+    label {
+      margin-top: 10px;
+      display: block;
+      font-weight: bold;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+    button:hover {
+      background-color: #0056b3;
+      transform: scale(1.02);
+    }
+    #result {
+      padding: 15px;
+      background: #e9ecef;
+      margin-top: 20px;
+      border-radius: 8px;
+      min-height: 50px;
+      text-align: center;
+      word-wrap: break-word;
+    }
+    #graph {
+      margin-top: 20px;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    @media (max-width: 600px) {
+      .btn-group {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="logo">∫ Integral Calculator</div>
+
+    <label for="functionInput">Function \(f(x)\):</label>
+    <input type="text" id="functionInput" placeholder="e.g., x^2 + sin(x)" />
+
+    <label for="lowerLimit">Lower limit (optional):</label>
+    <input type="text" id="lowerLimit" placeholder="e.g., 0" />
+
+    <label for="upperLimit">Upper limit (optional):</label>
+    <input type="text" id="upperLimit" placeholder="e.g., 2" />
+
+    <div class="btn-group">
+      <button onclick="calculateIntegration()">Calculate</button>
+    </div>
+
+    <div id="result"></div>
+    <div id="graph"></div>
+  </div>
+
+<script>
+function calculateIntegration() {
+  const funcStr = document.getElementById('functionInput').value.trim();
+  const lower = document.getElementById('lowerLimit').value.trim();
+  const upper = document.getElementById('upperLimit').value.trim();
+  const resultDiv = document.getElementById('result');
+
+  if (!funcStr) {
+    resultDiv.innerHTML = 'Please enter a function.';
+    return;
+  }
+
+  try {
+    const integral = Algebrite.integral(funcStr).toString();
+    if (lower && upper) {
+      const F = Algebrite.run(integral);
+      const F_upper = Algebrite.run(`subst(x, ${upper}, ${F})`);
+      const F_lower = Algebrite.run(`subst(x, ${lower}, ${F})`);
+      const definite_value = Algebrite.run(`${F_upper} - (${F_lower})`);
+
+      resultDiv.innerHTML = `
+        \\[
+        \\int_{${lower}}^{${upper}} ${Algebrite.run(`printlatex(${funcStr})`)} \\, dx = ${Algebrite.run(`printlatex(${definite_value})`}
+        \\]
+      `;
+    } else {
+      resultDiv.innerHTML = `
+        \\[
+        \\int ${Algebrite.run(`printlatex(${funcStr})`)} \\, dx = ${Algebrite.run(`printlatex(${integral})`} + C
+        \\]
+      `;
+    }
+
+    MathJax.typesetPromise();
+
+  } catch (error) {
+    console.error(error);
+    resultDiv.innerHTML = 'Error computing integral. Please check your function syntax.';
+  }
+}
+</script>
+
+</body>
+</html>
