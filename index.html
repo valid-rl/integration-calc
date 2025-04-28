@@ -7,18 +7,15 @@
 
   <!-- Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
-  <script src="https://unpkg.com/algebrite"></script>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
   <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-  <!-- Favicon -->
-  <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/4/4c/Integral_Icon.png" type="image/png">
-
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/4/4c/Integral_Icon.png" type="image/png">
 
   <style>
     body {
@@ -91,16 +88,6 @@
     #graph {
       margin-top: 20px;
     }
-    .dark-mode {
-      background: #1e1e1e;
-      color: #f5f5f5;
-    }
-    .dark-mode .container {
-      background: #2c2c2c;
-    }
-    .dark-mode #result {
-      background: #3a3a3a;
-    }
     .btn-group {
       display: flex;
       gap: 10px;
@@ -110,33 +97,6 @@
       .btn-group {
         flex-direction: column;
       }
-    }
-    .loader {
-      border: 6px solid #f3f3f3;
-      border-top: 6px solid #007bff;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 10px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    .about-section {
-      margin-top: 40px;
-      padding: 20px;
-      background: #f1f1f1;
-      border-radius: 10px;
-      text-align: center;
-    }
-    .about-section h2 {
-      margin-bottom: 10px;
-    }
-    .about-section p {
-      font-size: 1rem;
-      line-height: 1.6;
     }
   </style>
 </head>
@@ -157,19 +117,10 @@
     <div class="btn-group">
       <button onclick="calculateIntegration()">Calculate</button>
       <button onclick="downloadPDF()">Download as PDF</button>
-      <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
     </div>
 
     <div id="result"></div>
     <div id="graph"></div>
-
-    <!-- About Section -->
-    <div class="about-section">
-      <h2>About This Calculator</h2>
-      <p>
-        This Integration Calculator is designed to help students, teachers, engineers, and professionals easily compute both indefinite and definite integrals. Powered by advanced symbolic math engines and dynamic graphing tools, it provides accurate results, beautiful mathematical rendering, and visual representations of functions. Whether you're solving homework problems or verifying complex integrals, this tool simplifies the process and enhances understanding. Now with features like dark mode, downloadable results, and mobile-friendly design, integrating has never been more accessible.
-      </p>
-    </div>
   </div>
 
   <script>
@@ -185,40 +136,33 @@
         return;
       }
 
-      // Show loading spinner
-      resultDiv.innerHTML = '<div class="loader"></div>';
-
       try {
-        let latexResult = '';
+        const node = math.parse(funcStr);
+        const f = node.compile();
+
         if (lower && upper) {
-          const integral = Algebrite.integral(funcStr).toString();
-          const compiledIntegral = math.compile(integral);
-          const valueUpper = compiledIntegral.evaluate({x: parseFloat(upper)});
-          const valueLower = compiledIntegral.evaluate({x: parseFloat(lower)});
-          const definiteValue = math.format(valueUpper - valueLower, {precision: 6});
+          // Definite integral: use numeric integration
+          const fn = (x) => f.evaluate({x: x});
+          const area = math.integrate(fn, parseFloat(lower), parseFloat(upper));
 
-          latexResult = `\\[
-          \\int_{${lower}}^{${upper}} ${math.parse(funcStr).toTex()} \\, dx = ${definiteValue}
+          resultDiv.innerHTML = `\\[
+          \\int_{${lower}}^{${upper}} ${node.toTex()} \\, dx = ${math.format(area, {precision: 6})}
           \\]`;
-
           plotGraph(funcStr, lower, upper);
         } else {
-          const integral = Algebrite.integral(funcStr).toString();
-          latexResult = `\\[
-          \\int ${math.parse(funcStr).toTex()} \\, dx = ${math.parse(integral).toTex()} + C
+          // Indefinite integral (symbolic)
+          const integralNode = math.integrate(funcStr, 'x');
+          resultDiv.innerHTML = `\\[
+          \\int ${node.toTex()} \\, dx = ${integralNode.toTex()} + C
           \\]`;
-
           plotGraph(funcStr, null, null);
         }
 
-        setTimeout(() => {
-          resultDiv.innerHTML = latexResult;
-          MathJax.typesetPromise();
-        }, 500);
+        MathJax.typesetPromise();
 
       } catch (error) {
         console.error(error);
-        resultDiv.innerHTML = 'Error computing integral. Please check your function.';
+        resultDiv.innerHTML = 'Error computing integral. Please check your function syntax.';
       }
     }
 
@@ -282,10 +226,6 @@
         doc.addImage(imgData, 'PNG', 10, 10, 190, 40);
         doc.save('integral_result.pdf');
       });
-    }
-
-    function toggleDarkMode() {
-      document.body.classList.toggle('dark-mode');
     }
   </script>
 </body>
