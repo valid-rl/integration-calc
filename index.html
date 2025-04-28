@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Integral Calculator</title>
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+  <script src="https://unpkg.com/algebrite"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Favicon -->
+  <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/4/4c/Integral_Icon.png" type="image/png">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: background 0.3s, color 0.3s;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 30px;
+      transition: background 0.3s;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #007bff;
+    }
+    label {
+      margin-top: 10px;
+      display: block;
+      font-weight: bold;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      transition: border-color 0.3s;
+    }
+    input:focus {
+      border-color: #007bff;
+      outline: none;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+    button:hover {
+      background-color: #0056b3;
+      transform: scale(1.02);
+    }
+    #result {
+      padding: 15px;
+      background: #e9ecef;
+      margin-top: 20px;
+      border-radius: 8px;
+      min-height: 50px;
+      text-align: center;
+      word-wrap: break-word;
+      transition: background-color 0.3s;
+    }
+    #graph {
+      margin-top: 20px;
+    }
+    .dark-mode {
+      background: #1e1e1e;
+      color: #f5f5f5;
+    }
+    .dark-mode .container {
+      background: #2c2c2c;
+    }
+    .dark-mode #result {
+      background: #3a3a3a;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    @media (max-width: 600px) {
+      .btn-group {
+        flex-direction: column;
+      }
+    }
+    .loader {
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #007bff;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 10px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .about-section {
+      margin-top: 40px;
+      padding: 20px;
+      background: #f1f1f1;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .about-section h2 {
+      margin-bottom: 10px;
+    }
+    .about-section p {
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="logo">∫ Integral Calculator</div>
+
+    <label for="functionInput">Function \(f(x)\):</label>
+    <input type="text" id="functionInput" placeholder="e.g., x^2 + sin(x)" />
+
+    <label for="lowerLimit">Lower limit (optional):</label>
+    <input type="text" id="lowerLimit" placeholder="e.g., 0" />
+
+    <label for="upperLimit">Upper limit (optional):</label>
+    <input type="text" id="upperLimit" placeholder="e.g., 2" />
+
+    <div class="btn-group">
+      <button onclick="calculateIntegration()">Calculate</button>
+      <button onclick="downloadPDF()">Download as PDF</button>
+      <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
+    </div>
+
+    <div id="result"></div>
+    <div id="graph"></div>
+
+    <!-- About Section -->
+    <div class="about-section">
+      <h2>About This Calculator</h2>
+      <p>
+        This Integration Calculator is designed to help students, teachers, engineers, and professionals easily compute both indefinite and definite integrals. Powered by advanced symbolic math engines and dynamic graphing tools, it provides accurate results, beautiful mathematical rendering, and visual representations of functions. Whether you're solving homework problems or verifying complex integrals, this tool simplifies the process and enhances understanding. Now with features like dark mode, downloadable results, and mobile-friendly design, integrating has never been more accessible.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    function calculateIntegration() {
+      const funcStr = document.getElementById('functionInput').value.trim();
+      const lower = document.getElementById('lowerLimit').value.trim();
+      const upper = document.getElementById('upperLimit').value.trim();
+      const resultDiv = document.getElementById('result');
+      const graphDiv = document.getElementById('graph');
+
+      if (!funcStr) {
+        resultDiv.innerHTML = 'Please enter a function.';
+        return;
+      }
+
+      // Show loading spinner
+      resultDiv.innerHTML = '<div class="loader"></div>';
+
+      try {
+        let latexResult = '';
+        if (lower && upper) {
+          const integral = Algebrite.integral(funcStr).toString();
+          const compiledIntegral = math.compile(integral);
+          const valueUpper = compiledIntegral.evaluate({x: parseFloat(upper)});
+          const valueLower = compiledIntegral.evaluate({x: parseFloat(lower)});
+          const definiteValue = math.format(valueUpper - valueLower, {precision: 6});
+
+          latexResult = `\\[
+          \\int_{${lower}}^{${upper}} ${math.parse(funcStr).toTex()} \\, dx = ${definiteValue}
+          \\]`;
+
+          plotGraph(funcStr, lower, upper);
+        } else {
+          const integral = Algebrite.integral(funcStr).toString();
+          latexResult = `\\[
+          \\int ${math.parse(funcStr).toTex()} \\, dx = ${math.parse(integral).toTex()} + C
+          \\]`;
+
+          plotGraph(funcStr, null, null);
+        }
+
+        setTimeout(() => {
+          resultDiv.innerHTML = latexResult;
+          MathJax.typesetPromise();
+        }, 500);
+
+      } catch (error) {
+        console.error(error);
+        resultDiv.innerHTML = 'Error computing integral. Please check your function.';
+      }
+    }
+
+    function plotGraph(funcStr, lower, upper) {
+      let x = [];
+      let y = [];
+      const expr = math.compile(funcStr);
+
+      for (let i = -10; i <= 10; i += 0.1) {
+        x.push(i);
+        y.push(expr.evaluate({x: i}));
+      }
+
+      const trace = {
+        x: x,
+        y: y,
+        mode: 'lines',
+        name: 'f(x)',
+        line: {color: 'blue'}
+      };
+
+      let layout = {
+        title: 'Graph of f(x)',
+        xaxis: {title: 'x'},
+        yaxis: {title: 'f(x)'},
+      };
+
+      let data = [trace];
+
+      if (lower && upper) {
+        let shadeX = [];
+        let shadeY = [];
+
+        for (let i = parseFloat(lower); i <= parseFloat(upper); i += 0.1) {
+          shadeX.push(i);
+          shadeY.push(expr.evaluate({x: i}));
+        }
+
+        const area = {
+          x: [...shadeX, ...shadeX.reverse()],
+          y: [...shadeY, new Array(shadeY.length).fill(0)],
+          fill: 'tozeroy',
+          type: 'scatter',
+          mode: 'none',
+          fillcolor: 'rgba(0,100,80,0.2)',
+          name: 'Area'
+        };
+
+        data.push(area);
+      }
+
+      Plotly.newPlot('graph', data, layout);
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      html2canvas(document.querySelector("#result")).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        doc.addImage(imgData, 'PNG', 10, 10, 190, 40);
+        doc.save('integral_result.pdf');
+      });
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+  </script>
+</body>
+</html>
