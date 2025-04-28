@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Integration Calculator</title>
+  <!-- Poppins font for modern look -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <!-- MathJax for LaTeX rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+  <!-- Nerdamer (all modules) for symbolic computation -->
+  <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/all.min.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0; padding: 0;
+      background: #f9f9f9; color: #333;
+    }
+    .container {
+      max-width: 600px; background: #fff;
+      padding: 1.5em; margin: 2em auto;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center; font-size: 1.5em;
+      margin-bottom: 0.5em;
+    }
+    .input-group {
+      display: flex; flex-wrap: wrap;
+      gap: 0.5em; margin-bottom: 0.5em;
+    }
+    .input-group input {
+      flex: 1 1 auto;
+      padding: 0.5em; font-size: 1em;
+      border: 1px solid #ccc; border-radius: 4px;
+    }
+    #functionInput { flex: 2 1 100%; }  /* Function field wider */
+    #lowerLimit, #upperLimit { max-width: 120px; }
+    #calcBtn {
+      flex: 1 1 100%; padding: 0.5em;
+      font-size: 1em; font-weight: 600;
+      background: #4caf50; color: #fff;
+      border: none; border-radius: 4px;
+      cursor: pointer; transition: background 0.3s;
+    }
+    #calcBtn:hover { background: #45a044; }
+    .examples {
+      margin: 1em 0;
+      display: flex; flex-wrap: wrap;
+      align-items: center; gap: 0.5em;
+    }
+    .examples span {
+      font-size: 0.9em; color: #555;
+    }
+    .examples button {
+      padding: 0.3em 0.6em; font-size: 0.9em;
+      background: #e0e0e0; border: none;
+      border-radius: 4px; cursor: pointer;
+      transition: background 0.3s;
+    }
+    .examples button:hover { background: #d5d5d5; }
+    #output { min-height: 2em; margin-top: 1em; }
+    #result { font-size: 1.1em; margin-bottom: 0.5em; }
+    #error  { color: #d33; font-weight: 600; }
+    /* Responsive adjustments: stack inputs on narrow screens */
+    @media (max-width: 500px) {
+      #functionInput, #lowerLimit, #upperLimit, #calcBtn {
+        flex: 1 1 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Integration Calculator</h1>
+    <div class="input-group">
+      <input type="text" id="functionInput" placeholder="Enter f(x), e.g. x^2 + 2*x">
+      <input type="text" id="lowerLimit" placeholder="Lower limit">
+      <input type="text" id="upperLimit" placeholder="Upper limit">
+      <button id="calcBtn">Calculate</button>
+    </div>
+    <div class="examples">
+      <span>Examples:</span>
+      <button class="example-btn" data-func="x^2">x^2</button>
+      <button class="example-btn" data-func="sin(x)">sin(x)</button>
+      <button class="example-btn" data-func="sqrt(x)">√x</button>
+    </div>
+    <div id="output">
+      <div id="result"></div>
+      <div id="error"></div>
+    </div>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var funcInput = document.getElementById('functionInput');
+    var lowerInput = document.getElementById('lowerLimit');
+    var upperInput = document.getElementById('upperLimit');
+    var calcBtn   = document.getElementById('calcBtn');
+    var resultDiv = document.getElementById('result');
+    var errorDiv  = document.getElementById('error');
+
+    // Example buttons: fill the function field with preset functions
+    document.querySelectorAll('.example-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        funcInput.value = btn.getAttribute('data-func');
+        // Clear previous outputs
+        errorDiv.style.display = 'none'; errorDiv.innerText = '';
+        resultDiv.innerHTML = '';
+      });
+    });
+
+    // Calculate button: perform integration
+    calcBtn.addEventListener('click', function() {
+      var fStr = funcInput.value.trim();
+      var lowerStr = lowerInput.value.trim();
+      var upperStr = upperInput.value.trim();
+      // Reset outputs
+      errorDiv.innerText = ''; errorDiv.style.display = 'none';
+      resultDiv.innerHTML = '';
+
+      if (!fStr) {
+        showError("Please enter a function to integrate.");
+        return;
+      }
+      // Determine if definite integration is requested
+      var doDefinite = (lowerStr !== "" || upperStr !== "");
+      if (doDefinite) {
+        if (lowerStr === "" || upperStr === "") {
+          showError("Please provide both lower and upper limits for a definite integral, or leave both blank for an indefinite integral.");
+          return;
+        }
+      }
+
+      // Preprocess input for known function aliases:
+      // Replace ln(x) with log(x) for natural log, since Nerdamer uses log for ln
+      fStr = fStr.replace(/\bln\(/g, "log(");
+      // Replace sqrt(x) with x^(1/2)
+      while (fStr.includes("sqrt(")) {
+        var i = fStr.indexOf("sqrt(");
+        var start = i + 5; // position after "sqrt("
+        var depth = 1;
+        var j = start;
+        while (j < fStr.length && depth > 0) {  // find matching ')'
+          if (fStr[j] === '(') depth++;
+          else if (fStr[j] === ')') depth--;
+          j++;
+        }
+        if (depth !== 0) break;  // unmatched parenthesis (invalid input)
+        var inside = fStr.substring(start, j-1);
+        fStr = fStr.substring(0, i) + "(" + inside + ")^(1/2)" + fStr.substring(j);
+      }
+
+      try {
+        if (doDefinite) {
+          // Prepare limits (handle pi constant if used)
+          if (lowerStr.toLowerCase() === 'pi') lowerStr = 'PI';
+          if (upperStr.toLowerCase() === 'pi') upperStr = 'PI';
+          // Use nerdamer defint for definite integrals
+          var defResult = nerdamer("defint(" + fStr + ", " + "x, " + lowerStr + ", " + upperStr + ")");
+          var resultLatex = defResult.toTeX();
+          // Convert any "pi/PI" text to proper LaTeX \pi
+          resultLatex = resultLatex.replace(/([^\\]|^)(pi|PI)([^a-zA-Z]|$)/g, function(match, p1, p2, p3) {
+            return p1 + "\\pi" + p3;
+          });
+          // Also get latex for the integrand and limits
+          var integrandLatex = nerdamer(fStr).toTeX();
+          integrandLatex = integrandLatex.replace(/([^\\]|^)(pi|PI)([^a-zA-Z]|$)/g, "$1\\pi$3");
+          var lowerLatex, upperLatex;
+          try { lowerLatex = nerdamer(lowerStr).toTeX(); }
+          catch(e) { lowerLatex = lowerStr; }
+          try { upperLatex = nerdamer(upperStr).toTeX(); }
+          catch(e) { upperLatex = upperStr; }
+          lowerLatex = lowerLatex.replace(/([^\\]|^)(pi|PI)([^a-zA-Z]|$)/g, "$1\\pi$3");
+          upperLatex = upperLatex.replace(/([^\\]|^)(pi|PI)([^a-zA-Z]|$)/g, "$1\\pi$3");
+          // Construct the LaTeX for definite integral result display
+          var fullLatex = "\\displaystyle \\int_{" + lowerLatex + "}^{" + upperLatex + "} " 
+                        + integrandLatex + "\\, dx = " + resultLatex;
+          resultDiv.innerHTML = "$$" + fullLatex + "$$";
+        } else {
+          // Indefinite integral
+          var indefResult = nerdamer("integrate(" + fStr + ", x)");
+          var resultLatex = indefResult.toTeX();
+          // If Nerdamer couldn't integrate (returns an unevaluated integral), handle gracefully
+          if (resultLatex.indexOf("integrate") !== -1) {
+            showError("Sorry, the integral could not be computed.");
+            return;
+          }
+          // Replace pi constants in output
+          resultLatex = resultLatex.replace(/([^\\]|^)(pi|PI)([^a-zA-Z]|$)/g, "$1\\pi$3");
+          var integrandLatex = nerdamer(fStr).toTeX();
+          integrandLatex = integrandLatex.replace(/([^\\]|^)(pi|PI)([^a-zA-Z]|$)/g, "$1\\pi$3");
+          var fullLatex = "\\displaystyle \\int " + integrandLatex + "\\, dx = " + resultLatex + " + C";
+          resultDiv.innerHTML = "$$" + fullLatex + "$$";
+        }
+        // Trigger MathJax to typeset the new content
+        if (window.MathJax) {
+          MathJax.typeset();
+        }
+      } catch (err) {
+        console.error(err);
+        showError("Invalid input. Please check the function and limits.");
+      }
+    });
+
+    function showError(msg) {
+      resultDiv.innerHTML = '';
+      errorDiv.innerText = msg;
+      errorDiv.style.display = 'block';
+    }
+  });
+  </script>
+</body>
+</html>
