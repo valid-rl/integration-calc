@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Integration Calculator</title>
+
+  <!-- Fonts and libraries -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathlive/dist/mathlive.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/all.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 600px;
+      background: #fff;
+      padding: 20px;
+      margin: 0 auto;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 1.5em;
+    }
+    .input-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    math-field {
+      width: 100%;
+      font-size: 1.2em;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      min-height: 50px;
+    }
+    button {
+      padding: 10px;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    #calcBtn {
+      background-color: #4caf50;
+      color: white;
+      flex: 1 1 48%;
+    }
+    #copyBtn {
+      background-color: #2196f3;
+      color: white;
+      flex: 1 1 48%;
+    }
+    #clearBtn {
+      background-color: #f44336;
+      color: white;
+      width: 100%;
+    }
+    #calcBtn:hover { background-color: #45a049; }
+    #copyBtn:hover { background-color: #1976d2; }
+    #clearBtn:hover { background-color: #d32f2f; }
+    .examples {
+      margin: 15px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .examples button {
+      background: #e0e0e0;
+      padding: 5px 10px;
+      font-size: 0.9em;
+    }
+    .examples button:hover {
+      background: #d5d5d5;
+    }
+    #output {
+      margin-top: 20px;
+      min-height: 2em;
+      font-size: 1.2em;
+      text-align: center;
+    }
+    #error {
+      color: #d33;
+      font-weight: 600;
+      margin-top: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Integration Calculator</h1>
+
+    <div class="input-group">
+      <math-field id="functionInput" virtual-keyboard-mode="manual" placeholder="Type your function here (e.g. x^2 + sin(x))"></math-field>
+      <button id="calcBtn">Calculate</button>
+      <button id="copyBtn">Copy Result</button>
+      <button id="clearBtn">Clear All</button>
+    </div>
+
+    <div class="examples">
+      <span>Examples:</span>
+      <button class="example-btn" data-func="x^2">x²</button>
+      <button class="example-btn" data-func="sin(x)">sin(x)</button>
+      <button class="example-btn" data-func="cos(x)">cos(x)</button>
+      <button class="example-btn" data-func="tan(x)">tan(x)</button>
+      <button class="example-btn" data-func="sqrt(x)">√x</button>
+      <button class="example-btn" data-func="ln(x)">ln(x)</button>
+      <button class="example-btn" data-func="e^x">e^x</button>
+    </div>
+
+    <div id="output"></div>
+    <div id="error"></div>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const funcInput = document.getElementById('functionInput');
+  const calcBtn   = document.getElementById('calcBtn');
+  const copyBtn   = document.getElementById('copyBtn');
+  const clearBtn  = document.getElementById('clearBtn');
+  const resultDiv = document.getElementById('output');
+  const errorDiv  = document.getElementById('error');
+
+  // Example Buttons
+  document.querySelectorAll('.example-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      funcInput.value = btn.getAttribute('data-func');
+      clearResult();
+    });
+  });
+
+  // Calculate
+  calcBtn.addEventListener('click', () => {
+    clearResult();
+    const latexInput = funcInput.value;
+    if (!latexInput.trim()) {
+      showError('Please enter a function to integrate.');
+      return;
+    }
+
+    try {
+      let fStr = latexInput
+                  .replace(/\\sin/g, "sin")
+                  .replace(/\\cos/g, "cos")
+                  .replace(/\\tan/g, "tan")
+                  .replace(/\\ln/g, "log")
+                  .replace(/\\sqrt\{([^}]*)\}/g, "($1)^(1/2)")
+                  .replace(/\\left\(/g, "(")
+                  .replace(/\\right\)/g, ")")
+                  .replace(/\\pi/g, "PI")
+                  .replace(/\\mathrm\{([^}]*)\}/g, "$1");
+
+      // Perform indefinite integration
+      const indefResult = nerdamer("integrate(" + fStr + ", x)");
+      const resultLatex = indefResult.toTeX();
+      if (resultLatex.includes('integrate')) {
+        showError('Sorry, the integral could not be computed.');
+        return;
+      }
+
+      const integrandLatex = nerdamer(fStr).toTeX();
+      const fullLatex = "\\displaystyle \\int " + integrandLatex + "\\, dx = " + resultLatex + " + C";
+      resultDiv.innerHTML = "$$" + fullLatex + "$$";
+      MathJax.typeset();
+
+    } catch (e) {
+      console.error(e);
+      showError('Invalid input or unable to compute integral.');
+    }
+  });
+
+  // Copy Result
+  copyBtn.addEventListener('click', async () => {
+    const resultText = resultDiv.innerText || '';
+    if (!resultText.trim()) {
+      alert('No result to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(resultText);
+      alert('Result copied to clipboard!');
+    } catch (err) {
+      console.error('Copy failed', err);
+      alert('Failed to copy.');
+    }
+  });
+
+  // Clear All
+  clearBtn.addEventListener('click', () => {
+    funcInput.value = '';
+    clearResult();
+  });
+
+  function clearResult() {
+    resultDiv.innerHTML = '';
+    errorDiv.innerText = '';
+    errorDiv.style.display = 'none';
+  }
+
+  function showError(msg) {
+    errorDiv.innerText = msg;
+    errorDiv.style.display = 'block';
+  }
+});
+</script>
+
+</body>
+</html>
