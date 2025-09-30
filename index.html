@@ -1,4 +1,4 @@
-<!-- This is an integration calculator that I coded for fun. I don't think it works for integration by parts though.-->
+<!-- Integration Calculator (patched with special-cases + interactive examples menu) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,20 +13,35 @@
   <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/all.min.js"></script>
 
   <style>
+    :root {
+      --bg: #f9f9f9;
+      --text: #333;
+      --white: #fff;
+      --shadow: rgba(0,0,0,0.1);
+      --primary: #4caf50;
+      --primary-hover: #45a049;
+      --blue: #2196f3;
+      --blue-hover: #1976d2;
+      --red: #f44336;
+      --red-hover: #d32f2f;
+      --gray: #e0e0e0;
+      --gray-hover: #d5d5d5;
+    }
+    * { box-sizing: border-box; }
     body {
       font-family: 'Poppins', sans-serif;
-      background: #f9f9f9;
+      background: var(--bg);
       margin: 0;
       padding: 20px;
-      color: #333;
+      color: var(--text);
     }
     .container {
       max-width: 600px;
-      background: #fff;
+      background: var(--white);
       padding: 20px;
       margin: 0 auto;
       border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 8px var(--shadow);
     }
     h1 {
       text-align: center;
@@ -37,7 +52,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-bottom: 15px;
+      margin-bottom: 10px;
     }
     math-field {
       width: 100%;
@@ -53,42 +68,87 @@
       border: none;
       border-radius: 6px;
       cursor: pointer;
-      transition: background 0.3s;
+      transition: background 0.2s ease;
     }
     #calcBtn {
-      background-color: #4caf50;
+      background-color: var(--primary);
       color: white;
       flex: 1 1 48%;
     }
     #copyBtn {
-      background-color: #2196f3;
+      background-color: var(--blue);
       color: white;
       flex: 1 1 48%;
     }
     #clearBtn {
-      background-color: #f44336;
+      background-color: var(--red);
       color: white;
       width: 100%;
     }
-    #calcBtn:hover { background-color: #45a049; }
-    #copyBtn:hover { background-color: #1976d2; }
-    #clearBtn:hover { background-color: #d32f2f; }
-    .examples {
-      margin: 15px 0;
+    #calcBtn:hover { background-color: var(--primary-hover); }
+    #copyBtn:hover { background-color: var(--blue-hover); }
+    #clearBtn:hover { background-color: var(--red-hover); }
+
+    /* Examples dropdown */
+    .examples-menu-wrap {
+      position: relative;
+      margin: 10px 0 0;
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      justify-content: center;
     }
-    .examples button {
-      background: #e0e0e0;
-      padding: 5px 10px;
+    #examplesToggle {
+      background: var(--gray);
+      width: 100%;
+    }
+    #examplesToggle:hover {
+      background: var(--gray-hover);
+    }
+    .menu {
+      position: absolute;
+      top: 110%;
+      left: 0;
+      width: 100%;
+      background: var(--white);
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 6px 16px var(--shadow);
+      padding: 8px 0;
+      display: none;
+      z-index: 10;
+      max-height: 320px;
+      overflow: auto;
+    }
+    .menu.open { display: block; }
+    .menu-section {
+      padding: 8px 12px 4px;
+      font-weight: 600;
       font-size: 0.9em;
+      color: #666;
     }
-    .examples button:hover {
-      background: #d5d5d5;
+    .menu-item {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      background: transparent;
+      font-size: 0.95em;
+      border-radius: 0;
+      border-top: 1px solid #f3f3f3;
     }
+    .menu-item:hover {
+      background: #f6f6f6;
+    }
+    .kbd {
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.85em;
+      margin-left: 6px;
+    }
+
     #output {
-      margin-top: 20px;
+      margin-top: 16px;
       min-height: 2em;
       font-size: 1.2em;
       text-align: center;
@@ -113,15 +173,29 @@
       <button id="clearBtn">Clear All</button>
     </div>
 
-    <div class="examples">
-      <span>Examples:</span>
-      <button class="example-btn" data-func="x^2">x²</button>
-      <button class="example-btn" data-func="sin(x)">sin(x)</button>
-      <button class="example-btn" data-func="cos(x)">cos(x)</button>
-      <button class="example-btn" data-func="tan(x)">tan(x)</button>
-      <button class="example-btn" data-func="sqrt(x)">√x</button>
-      <button class="example-btn" data-func="ln(x)">ln(x)</button>
-      <button class="example-btn" data-func="e^x">e^x</button>
+    <!-- Interactive examples dropdown -->
+    <div class="examples-menu-wrap">
+      <button id="examplesToggle" aria-haspopup="true" aria-expanded="false">
+        Examples ▾ <span class="kbd">Enter</span> to apply
+      </button>
+      <div id="examplesMenu" class="menu" role="menu" aria-label="Examples">
+        <div class="menu-section">Basic</div>
+        <button class="menu-item" data-func="x^2">x^2</button>
+        <button class="menu-item" data-func="sin(x)">sin(x)</button>
+        <button class="menu-item" data-func="cos(x)">cos(x)</button>
+        <button class="menu-item" data-func="tan(x)">tan(x)</button>
+        <button class="menu-item" data-func="sqrt(x)">√x</button>
+        <button class="menu-item" data-func="ln(x)">ln(x)</button>
+        <button class="menu-item" data-func="e^x">e^x</button>
+
+        <div class="menu-section">By-Parts Classics</div>
+        <button class="menu-item" data-func="ln(2x+3)">ln(2x + 3)</button>
+        <button class="menu-item" data-func="ln(1 + x^2)">ln(1 + x^2)</button>
+        <button class="menu-item" data-func="ln(x^2 + 5)">ln(x^2 + 5)</button>
+        <button class="menu-item" data-func="arctan(x)">arctan(x)</button>
+        <button class="menu-item" data-func="arcsin(x)">arcsin(x)</button>
+        <button class="menu-item" data-func="arccos(x)">arccos(x)</button>
+      </div>
     </div>
 
     <div id="output"></div>
@@ -130,18 +204,39 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const funcInput = document.getElementById('functionInput');
-  const calcBtn   = document.getElementById('calcBtn');
-  const copyBtn   = document.getElementById('copyBtn');
-  const clearBtn  = document.getElementById('clearBtn');
-  const resultDiv = document.getElementById('output');
-  const errorDiv  = document.getElementById('error');
+  const funcInput   = document.getElementById('functionInput');
+  const calcBtn     = document.getElementById('calcBtn');
+  const copyBtn     = document.getElementById('copyBtn');
+  const clearBtn    = document.getElementById('clearBtn');
+  const resultDiv   = document.getElementById('output');
+  const errorDiv    = document.getElementById('error');
 
-  // Example Buttons
-  document.querySelectorAll('.example-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      funcInput.value = btn.getAttribute('data-func');
+  // Dropdown elements
+  const exToggle = document.getElementById('examplesToggle');
+  const exMenu   = document.getElementById('examplesMenu');
+
+  // Toggle dropdown
+  exToggle.addEventListener('click', () => {
+    const isOpen = exMenu.classList.toggle('open');
+    exToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+  // Close on outside click
+  document.addEventListener('click', (e) => {
+    if (!exMenu.contains(e.target) && e.target !== exToggle) {
+      exMenu.classList.remove('open');
+      exToggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Select example
+  exMenu.querySelectorAll('.menu-item').forEach(item => {
+    item.addEventListener('click', () => {
+      funcInput.value = item.getAttribute('data-func');
       clearResult();
+      exMenu.classList.remove('open');
+      exToggle.setAttribute('aria-expanded', 'false');
+      // Focus the Calculate button for quick Enter
+      calcBtn.focus();
     });
   });
 
@@ -207,7 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (mQuad) {
           const c = parseFloat(mQuad[1]);
           if (!Number.isNaN(c) && c > 0) {
-            resultLatex = `x${ln(\`x^2+\${c}\`)} - 2x + 2\\sqrt{\${c}}\\,${atan(\`x/\\sqrt{\${c}}\`)}`;
+            resultLatex = `x${ln(`x^2+${c}`)} - 2x + 2\\sqrt{${c}}\\,${atan(`x/\\sqrt{${c}}`)}`;
           }
         }
       }
