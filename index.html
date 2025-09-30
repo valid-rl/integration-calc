@@ -159,6 +159,9 @@ document.addEventListener('DOMContentLoaded', function() {
                   .replace(/\\sin/g, "sin")
                   .replace(/\\cos/g, "cos")
                   .replace(/\\tan/g, "tan")
+                  .replace(/\\arctan/g, "atan")
+                  .replace(/\\arcsin/g, "asin")
+                  .replace(/\\arccos/g, "acos")
                   .replace(/\\ln/g, "log")
                   .replace(/\\sqrt\{([^}]*)\}/g, "($1)^(1/2)")
                   .replace(/\\left\(/g, "(")
@@ -167,8 +170,61 @@ document.addEventListener('DOMContentLoaded', function() {
                   .replace(/\\mathrm\{([^}]*)\}/g, "$1");
 
       // Perform indefinite integration
-      const indefResult = nerdamer("integrate(" + fStr + ", x)");
-      const resultLatex = indefResult.toTeX();
+      const indef = nerdamer("integrate(" + fStr + ", x)");
+      let resultLatex = indef.toTeX();
+
+      // --- Simple pattern normalization for checks ---
+      const norm = fStr.replace(/\s+/g, '').toLowerCase();
+
+      // Helper to build pretty pieces
+      const ln = s => `\\ln\\left(${s}\\right)`;
+      const atan = s => `\\arctan\\left(${s}\\right)`;
+
+      // ------------- SPECIAL-CASES (by-parts classics) -------------
+      // 1) ∫ ln(x) dx
+      if (norm === 'log(x)' || norm === 'ln(x)') {
+        resultLatex = 'x\\ln(x) - x';
+      }
+      // 2) ∫ ln(a x + b) dx  where a,b are numbers (a ≠ 0)
+      else {
+        const mLin = norm.match(/^log\(\s*([+-]?\d*\.?\d+)\*?x(?:\s*([+-]\s*\d*\.?\d+))?\s*\)$/);
+        if (mLin) {
+          const a = parseFloat(mLin[1]);
+          const b = mLin[2] ? parseFloat(mLin[2].replace(/\s+/g,'')) : 0;
+          if (!Number.isNaN(a) && a !== 0 && !Number.isNaN(b)) {
+            const axb = `${a}x${b>=0?'+':''}${b}`;
+            resultLatex = `\\frac{(${axb})${ln(axb)}-(${axb})}{${a}}`;
+          }
+        }
+      }
+      // 3) ∫ ln(1 + x^2) dx  (and x^2 + 1)
+      if (/^log\(\s*1\+x\^2\s*\)$/.test(norm) || /^log\(\s*x\^2\+1\s*\)$/.test(norm)) {
+        resultLatex = `x${ln('1+x^2')} - 2x + 2${atan('x')}`;
+      }
+      // 4) ∫ ln(x^2 + c) dx  where c>0 is a number
+      {
+        const mQuad = norm.match(/^log\(\s*x\^2\+(\d*\.?\d+)\s*\)$/);
+        if (mQuad) {
+          const c = parseFloat(mQuad[1]);
+          if (!Number.isNaN(c) && c > 0) {
+            resultLatex = `x${ln(\`x^2+\${c}\`)} - 2x + 2\\sqrt{\${c}}\\,${atan(\`x/\\sqrt{\${c}}\`)}`;
+          }
+        }
+      }
+      // 5) ∫ arctan(x) dx
+      if (norm === 'atan(x)' || norm === 'arctan(x)') {
+        resultLatex = `x${atan('x')} - \\tfrac{1}{2}${ln('1+x^2')}`;
+      }
+      // 6) ∫ arcsin(x) dx
+      if (norm === 'asin(x)' || norm === 'arcsin(x)') {
+        resultLatex = `x\\arcsin(x) + \\sqrt{1-x^2}`;
+      }
+      // 7) ∫ arccos(x) dx
+      if (norm === 'acos(x)' || norm === 'arccos(x)') {
+        resultLatex = `x\\arccos(x) - \\sqrt{1-x^2}`;
+      }
+      // -------------------------------------------------------------
+
       if (resultLatex.includes('integrate')) {
         showError('Sorry, the integral could not be computed.');
         return;
